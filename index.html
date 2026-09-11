@@ -376,8 +376,8 @@ function drawBike() {
         ctx.stroke();
     }
 
-    // quadro
-    ctx.strokeStyle = '#d61f3c';
+    // quadro preto
+    ctx.strokeStyle = '#151515';
     ctx.lineWidth = 9;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -385,6 +385,32 @@ function drawBike() {
     ctx.lineTo(2, -30);
     ctx.lineTo(32, -18);
     ctx.stroke();
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-34, -16);
+    ctx.lineTo(2, -30);
+    ctx.lineTo(32, -18);
+    ctx.stroke();
+
+    // adesivos no tanque
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-6, -26);
+    ctx.quadraticCurveTo(12, -38, 26, -24);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-2, -23);
+    ctx.quadraticCurveTo(12, -33, 24, -21);
+    ctx.stroke();
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 7px Arial';
+    ctx.save();
+    ctx.translate(8, -28);
+    ctx.rotate(-0.1);
+    ctx.fillText('RAISPA', 0, 0);
+    ctx.restore();
 
     // motor
     ctx.fillStyle = '#555';
@@ -406,16 +432,16 @@ function drawBike() {
     ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(10, -34, 8, 8);
 
-    // garfo dianteiro
-    ctx.strokeStyle = '#888';
+    // garfo dianteiro preto
+    ctx.strokeStyle = '#222';
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(30, -18);
     ctx.lineTo(42, -9);
     ctx.stroke();
 
-    // guidão
-    ctx.fillStyle = '#222';
+    // guidão preto
+    ctx.fillStyle = '#050505';
     ctx.fillRect(28, -34, 18, 5);
 
     drawWheel(-36, 0, 19);
