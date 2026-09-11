@@ -1,11 +1,514 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>guilherme_lar_260904</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moto Raspa Traseira</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: #1a1a2e;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        color: #fff;
+        user-select: none;
+    }
+    canvas { display: block; }
+    #hud {
+        position: absolute;
+        top: 10px; left: 12px;
+        font-size: 18px;
+        text-shadow: 2px 2px 0 #000;
+        pointer-events: none;
+    }
+    #hud b { color: #ffcc00; }
+    #menu {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.55));
+        text-align: center;
+    }
+    #menu h1 {
+        font-size: 46px;
+        text-shadow: 3px 3px 0 #b3002d;
+    }
+    #menu p { font-size: 16px; max-width: 480px; line-height: 1.6; }
+    #menu .kbd {
+        background: #333;
+        border: 1px solid #888;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-weight: bold;
+    }
+    #btnStart {
+        background: #b3002d;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 14px 42px;
+        font-size: 22px;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 4px 0 #6d001b;
+        transition: transform .1s;
+    }
+    #btnStart:hover { transform: translateY(-2px); }
+    #btnStart:active { transform: translateY(2px); box-shadow: none; }
+    #hint {
+        position: absolute; bottom: 12px; left: 0; right: 0;
+        text-align: center; font-size: 13px; color: #aaa;
+        pointer-events: none;
+    }
+</style>
 </head>
 <body>
-    <h1>guilherme_lar_260904</h1>
+<canvas id="game"></canvas>
+<div id="hud">Distância: <b id="dist">0</b> m &nbsp;|&nbsp; Combo: <b id="combo">0</b>x</div>
+<div id="menu">
+    <h1>🏍️ MOTO RASPA TRASEIRA</h1>
+    <p>
+        Acelere e levante a frente para fazer o <b>cavalinho</b>.
+        Quanto mais tempo com a traseira raspando no chão, mais pontos de <b>combo</b> você ganha!
+        <br><br>
+        <span class="kbd">ARROWS / AD</span> acelerar &amp; frear &nbsp;
+        <span class="kbd">W / UP</span> levantar a frente &nbsp;
+        <span class="kbd">S / DOWN</span> abaixar
+    </p>
+    <button id="btnStart">COMEÇAR</button>
+</div>
+<div id="hint">Não deixe a moto derrapar demais! D 💥</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const hudDist = document.getElementById('dist');
+const hudCombo = document.getElementById('combo');
+const menu = document.getElementById('menu');
+const btnStart = document.getElementById('btnStart');
+
+let W, H, groundY;
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    groundY = H - 90;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+let state = 'menu';
+let distance = 0, combo = 0, comboTimer = 0, bestCombo = 0;
+let cityX = 0;
+
+const sparks = [];
+const smoke = [];
+
+const bike = {
+    x: W * 0.28,
+    vx: 0,
+    speed: 0,
+    maxSpeed: 560,
+    accel: 320,
+    brake: 520,
+    pitch: 0,        // 0 = no chão, 1 = cavalinho máximo
+    pitchRate: 0,
+    targetPitch: 0,
+    wobble: 0,
+    crash: false,
+    crashT: 0,
+};
+
+function reset() {
+    distance = 0; combo = 0; comboTimer = 0; bestCombo = 0;
+    sparks.length = 0; smoke.length = 0;
+    bike.x = W * 0.28;
+    bike.speed = 0; bike.vx = 0;
+    bike.pitch = 0; bike.pitchRate = 0; bike.targetPitch = 0;
+    bike.wobble = 0; bike.crash = false; bike.crashT = 0;
+    engine = 0; engineTarget = 0;
+}
+
+let motorPhase = 0;
+let engine = 0, engineTarget = 0;
+
+function update(dt) {
+    if (state !== 'play') return;
+
+    const up = keys['w'] || keys['arrowup'];
+    const down = keys['s'] || keys['arrowdown'];
+    const gas = keys['d'] || keys['arrowright'];
+    const brakeKey = keys['a'] || keys['arrowleft'];
+
+    if (!bike.crash) {
+        engineTarget = gas ? 1.5 : (bike.speed > 10 ? 0.9 : 0.35);
+        engine += (engineTarget - engine) * Math.min(1, dt * 5);
+        motorPhase += dt * (30 + engine * 55);
+
+        bike.speed += (gas ? bike.accel : 0) * dt;
+        if (brakeKey) bike.speed -= bike.brake * dt;
+        bike.speed -= (bike.speed > 0 ? 14 : 0) * dt * 0.06;
+        bike.speed = Math.max(0, Math.min(bike.maxSpeed, bike.speed));
+
+        bike.targetPitch = 0;
+        if (up) bike.targetPitch = 1;
+        if (down) bike.targetPitch = 0;
+
+        const rx = bike.speed / bike.maxSpeed;
+        const lean = up ? 1 - rx * 0.35 : 0;
+        const wobbleForce = (1 - rx) * 2.2 + Math.abs(bike.pitch) * 0.9;
+        bike.wobble += (Math.random() - 0.5) * wobbleForce * dt * 26;
+
+        const balance = (bike.targetPitch - bike.pitch) * 5.5;
+        bike.pitchRate += (balance + lean * 0.6) * dt * 9;
+        bike.pitchRate *= 1 - Math.min(1, dt * 3);
+        bike.pitch += bike.pitchRate * dt + bike.wobble * dt;
+
+        bike.pitch = Math.max(-0.12, Math.min(1, bike.pitch));
+        if (bike.pitch >= 1) bike.pitchRate = Math.min(bike.pitchRate, 0);
+        if (bike.pitch <= -0.12) bike.pitchRate = Math.max(bike.pitchRate, 0);
+
+        if (bike.pitch > 0.55 && bike.speed > 40) {
+            const slide = Math.random() * 40 + 20;
+            sparks.push({
+                x: bike.x + 26, y: groundY - 6,
+                vx: -bike.speed * 0.25 - slide, vy: -(Math.random() * 90 + 30),
+                life: 0.5, maxLife: 0.5, size: Math.random() * 4 + 2
+            });
+            if (Math.random() < 0.3) {
+                smoke.push({
+                    x: bike.x + 26, y: groundY - 8,
+                    vx: -40 - Math.random() * 60, vy: -Math.random() * 30,
+                    life: 1.1, maxLife: 1.1, size: Math.random() * 10 + 6
+                });
+            }
+        }
+
+        const scraping = bike.pitch > 0.55 && bike.speed > 40;
+        if (scraping) {
+            combo += dt * 10;
+            comboTimer = 0;
+            bestCombo = Math.max(bestCombo, combo);
+        } else {
+            comboTimer += dt;
+            if (comboTimer > 1.4) { combo = Math.max(0, combo - dt * 22); }
+        }
+
+        bike.vx = bike.speed;
+        distance += bike.speed * dt;
+        cityX += bike.speed * dt;
+
+        if (Math.abs(bike.wobble) > 1.35 && bike.pitch > 0.15) bike.crash = true;
+    } else {
+        bike.crashT += dt;
+        bike.speed *= 1 - Math.min(1, dt * 3);
+        bike.x += bike.speed * dt * 0.3;
+        if (bike.crashT > 2.2) { reset(); state = 'menu'; menu.style.display = 'flex'; }
+    }
+
+    updateParticles(dt);
+
+    const total = (engine * 55) + Math.max(0, bike.pitch - 0.55) * 160;
+    if (total > 0 && Math.random() < total * dt) {
+        smoke.push({
+            x: bike.x - 22, y: groundY - 34,
+            vx: -20 - Math.random() * 30, vy: -Math.random() * 90 - 30,
+            life: 0.9, maxLife: 0.9, size: Math.random() * 7 + 4
+        });
+    }
+}
+
+function updateParticles(dt) {
+    for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.life -= dt;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.vy += 700 * dt;
+        if (s.life <= 0) sparks.splice(i, 1);
+    }
+    for (let i = smoke.length - 1; i >= 0; i--) {
+        const s = smoke[i];
+        s.life -= dt;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.size += dt * 9;
+        if (s.life <= 0) smoke.splice(i, 1);
+    }
+}
+
+function draw() {
+    ctx.fillStyle = '#14142b';
+    ctx.fillRect(0, 0, W, H);
+
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0, '#2a1a4a');
+    sky.addColorStop(0.6, '#7a1d4a');
+    sky.addColorStop(1, '#ff9a3c');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, groundY);
+
+    drawSun();
+    drawSkyline();
+    drawRoad();
+    drawParticles();
+    drawBike();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Arial';
+    hudDist.textContent = Math.floor(distance);
+    hudCombo.textContent = Math.floor(combo) + ' (record ' + Math.floor(bestCombo) + ')';
+
+    if (bike.crash) {
+        ctx.fillStyle = 'rgba(255,0,60,.85)';
+        ctx.font = 'bold 46px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('💥 DERRAPOU! 💥', W / 2, H / 2);
+        ctx.font = '16px Arial';
+        ctx.fillText('Retornando ao menu...', W / 2, H / 2 + 36);
+        ctx.textAlign = 'left';
+    }
+}
+
+function drawSun() {
+    const g = ctx.createRadialGradient(W * 0.78, groundY * 0.45, 8, W * 0.78, groundY * 0.45, 120);
+    g.addColorStop(0, 'rgba(255,220,120,.95)');
+    g.addColorStop(1, 'rgba(255,154,60,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(W * 0.78 - 140, groundY * 0.45 - 140, 280, 280);
+}
+
+function drawSkyline() {
+    ctx.fillStyle = 'rgba(20,10,45,.85)';
+    const off = -(cityX % 350);
+    for (let i = -1; i < W / 350 + 2; i++) {
+        const bx = off + i * 350;
+        const bh = 120 + ((i * 73) % 180);
+        const bw = 220 + ((i * 41) % 90);
+        ctx.fillRect(bx, groundY - bh, bw, bh);
+        const win = 8 + ((i * (H * 59)) % 14);
+        ctx.fillStyle = 'rgba(255,210,120,.25)';
+        for (let wy = 10; wy < bh - 10; wy += 26) {
+            for (let wx = 8; wx < bw - 14; wx += 24) {
+                if ((wy + wx + i) % 5 !== 0) continue;
+                ctx.fillRect(bx + wx, groundY - bh + wy, 7, 9);
+            }
+        }
+        ctx.fillStyle = 'rgba(20,10,45,.85)';
+    }
+}
+
+function drawRoad() {
+    ctx.fillStyle = '#22212b';
+    ctx.fillRect(0, groundY, W, H - groundY);
+    ctx.fillStyle = '#44434f';
+    ctx.fillRect(0, groundY, W, 3);
+
+    const lane = 72;
+    ctx.fillStyle = 'rgba(255,255,255,.25)';
+    const off = cityX % (lane * 2);
+    for (let x = -lane - off; x < W + lane; x += lane * 2) {
+        ctx.fillRect(x, groundY + 34, lane * 0.6, 5);
+    }
+
+    const g = ctx.createLinearGradient(0, groundY, 0, H);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, groundY, W, H - groundY);
+}
+
+function drawParticles() {
+    for (const s of sparks) {
+        const a = Math.max(0, s.life / s.maxLife);
+        ctx.fillStyle = `rgba(255,${200},60,${a})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size * a + 0.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    for (const s of smoke) {
+        const a = Math.max(0, s.life / s.maxLife) * 0.35;
+        ctx.fillStyle = `rgba(200,200,210,${a})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawBike() {
+    const cx = bike.x, cy = groundY;
+    const p = bike.pitch;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // sombra
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 66, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const pitchDeg = p * 30;
+    ctx.rotate(-pitchDeg * Math.PI / 180);
+
+    // rodas
+    drawWheel(-36, 0, 19);
+    drawWheel(38, 0, 19);
+
+    // chicote traseiro (raspa no chão)
+    const scrape = p > 0.55;
+    if (scrape) {
+        ctx.strokeStyle = '#c9c9cf';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-28, -14);
+        ctx.lineTo(-58, Math.min(0, p - 0.55) * 120 - 2);
+        ctx.stroke();
+    }
+
+    // quadro
+    ctx.strokeStyle = '#d61f3c';
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-34, -16);
+    ctx.lineTo(2, -30);
+    ctx.lineTo(32, -18);
+    ctx.stroke();
+
+    // motor
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-24, -12, 46, 12);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-22, -6, 42, 5);
+
+    // escape
+    ctx.strokeStyle = '#777';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-14, -3);
+    ctx.lineTo(-38, 1);
+    ctx.stroke();
+
+    // selim
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-6, -38, 34, 7);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(10, -34, 8, 8);
+
+    // garfo dianteiro
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(30, -18);
+    ctx.lineTo(42, -9);
+    ctx.stroke();
+
+    // guidão
+    ctx.fillStyle = '#222';
+    ctx.fillRect(28, -34, 18, 5);
+
+    drawWheel(-36, 0, 19);
+    drawWheel(38, 0, 19);
+
+    // piloto
+    const riderLean = -p * 8;
+    ctx.save();
+    ctx.translate(-2, -40);
+    ctx.rotate(riderLean * Math.PI / 180);
+
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-8, -10, 16, 16);          // tronco
+    ctx.beginPath();
+    ctx.arc(6, -16, 12, 0, Math.PI * 2);    // capacete
+    ctx.fill();
+    ctx.strokeStyle = '#d61f3c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(6, -16, 10, -1.1, 0.9);         // faixa capacete
+    ctx.stroke();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-10, 4, 18, 7);            // perna/fundo
+
+    ctx.restore();
+
+    // braços (mais simples)
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(0, -34);
+    ctx.lineTo(30, -32);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // faísca visual ao raspar
+    if (p > 0.55 && bike.speed > 40 && !bike.crash) {
+        const g = ctx.createRadialGradient(cx - 4, groundY - 4, 2, cx - 4, groundY - 4, 34);
+        g.addColorStop(0, 'rgba(255,240,140,.9)');
+        g.addColorStop(0.4, 'rgba(255,150,40,.35)');
+        g.addColorStop(1, 'rgba(255,150,40,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(cx - 40, groundY - 40, 80, 44);
+    }
+}
+
+function drawWheel(x, y, r) {
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+    const spokes = motorPhase * 20;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spokes);
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, 0);
+        ctx.lineTo(r * 0.5, 0);
+        ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = '#d61f3c';
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+let last = performance.now();
+function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+}
+
+btnStart.addEventListener('click', () => {
+    reset();
+    state = 'play';
+    menu.style.display = 'none';
+});
+
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>
