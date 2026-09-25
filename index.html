@@ -288,44 +288,156 @@ function drawSun() {
     ctx.fillRect(W * 0.78 - 140, groundY * 0.45 - 140, 280, 280);
 }
 
-function drawSkyline() {
-    ctx.fillStyle = 'rgba(20,10,45,.85)';
-    const off = -(cityX % 350);
-    for (let i = -1; i < W / 350 + 2; i++) {
-        const bx = off + i * 350;
-        const bh = 120 + ((i * 73) % 180);
-        const bw = 220 + ((i * 41) % 90);
-        ctx.fillRect(bx, groundY - bh, bw, bh);
-        const win = 8 + ((i * (H * 59)) % 14);
-        ctx.fillStyle = 'rgba(255,210,120,.25)';
-        for (let wy = 10; wy < bh - 10; wy += 26) {
-            for (let wx = 8; wx < bw - 14; wx += 24) {
-                if ((wy + wx + i) % 5 !== 0) continue;
-                ctx.fillRect(bx + wx, groundY - bh + wy, 7, 9);
-            }
+function drawHouses() {
+    const off = -(cityX % 320);
+    for (let i = -1; i < W / 320 + 2; i++) {
+        const bx = off + i * 320;
+        const s = i * 37;
+
+        // cerquinha da frente
+        ctx.strokeStyle = '#7a5230';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(bx - 100, groundY - 8);
+        ctx.lineTo(bx + 90, groundY - 8);
+        ctx.stroke();
+        for (let p = -90; p <= 80; p += 18) {
+            ctx.beginPath();
+            ctx.moveTo(bx + p, groundY - 8);
+            ctx.lineTo(bx + p - 4, groundY - 26);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(bx + p + 9, groundY - 8);
+            ctx.lineTo(bx + p + 5, groundY - 26);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(bx + p, groundY - 22);
+            ctx.lineTo(bx + p + 9, groundY - 22);
+            ctx.stroke();
         }
-        ctx.fillStyle = 'rgba(20,10,45,.85)';
+
+        // árvore
+        const treeX = bx + 120;
+        ctx.strokeStyle = '#5a3a1a';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(treeX, groundY - 8);
+        ctx.lineTo(treeX, groundY - 42);
+        ctx.stroke();
+        ctx.fillStyle = '#2f6b2a';
+        ctx.beginPath();
+        ctx.arc(treeX, groundY - 50, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3f8a34';
+        ctx.beginPath();
+        ctx.arc(treeX - 10, groundY - 60, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(treeX + 10, groundY - 62, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // casa
+        const cw = 150 + ((s % 50));
+        const wall = s % 2 === 0 ? '#e8cf9a' : '#d9c48f';
+        const roof = s % 3 === 0 ? '#a8442d' : '#8a3b26';
+        ctx.fillStyle = wall;
+        ctx.fillRect(bx - 70, groundY - 74, cw, 66);
+        ctx.strokeStyle = '#8a6a3a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx - 70, groundY - 74, cw, 66);
+
+        // telhado
+        ctx.fillStyle = roof;
+        ctx.beginPath();
+        ctx.moveTo(bx - 84, groundY - 74);
+        ctx.lineTo(bx + cw - 70 + 14, groundY - 74);
+        ctx.lineTo(bx + cw / 2 - 70, groundY - 128);
+        ctx.closePath();
+        ctx.fill();
+
+        // porta
+        ctx.fillStyle = '#6b4a26';
+        ctx.fillRect(bx - 12, groundY - 36, 24, 28);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(bx + 7, groundY - 22, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // janelas
+        ctx.fillStyle = '#7ec8e8';
+        ctx.fillRect(bx - 52, groundY - 62, 26, 22);
+        ctx.strokeStyle = '#8a6a3a';
+        ctx.strokeRect(bx - 52, groundY - 62, 26, 22);
+        ctx.beginPath();
+        ctx.moveTo(bx - 52 + 13, groundY - 62);
+        ctx.lineTo(bx - 52 + 13, groundY - 40);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(bx - 52, groundY - 51);
+        ctx.lineTo(bx - 26, groundY - 51);
+        ctx.stroke();
+        if (cw > 160) {
+            ctx.fillStyle = '#7ec8e8';
+            ctx.fillRect(bx + 34, groundY - 62, 26, 22);
+            ctx.strokeRect(bx + 34, groundY - 62, 26, 22);
+            ctx.beginPath();
+            ctx.moveTo(bx + 34 + 13, groundY - 62);
+            ctx.lineTo(bx + 34 + 13, groundY - 40);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(bx + 34, groundY - 51);
+            ctx.lineTo(bx + 60, groundY - 51);
+            ctx.stroke();
+        }
     }
 }
 
 function drawRoad() {
-    ctx.fillStyle = '#22212b';
-    ctx.fillRect(0, groundY, W, H - groundY);
-    ctx.fillStyle = '#44434f';
-    ctx.fillRect(0, groundY, W, 3);
+    const dirtTop = groundY - 4;
+    // chão de terra (camada horizontal)
+    const g = ctx.createLinearGradient(0, dirtTop, 0, H);
+    g.addColorStop(0, '#b0814f');
+    g.addColorStop(0.5, '#9a7040');
+    g.addColorStop(1, '#6d4f2e');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, dirtTop, W, H - dirtTop);
 
-    const lane = 72;
-    ctx.fillStyle = 'rgba(255,255,255,.25)';
-    const off = cityX % (lane * 2);
-    for (let x = -lane - off; x < W + lane; x += lane * 2) {
-        ctx.fillRect(x, groundY + 34, lane * 0.6, 5);
+    // relevo da estrada de chão
+    ctx.strokeStyle = 'rgba(80,55,25,.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, dirtTop + 8);
+    for (let x = 0; x <= W + 40; x += 40) {
+        ctx.lineTo(x, dirtTop + 8 + Math.sin(x * 0.09 + cityX * 0.0004) * 4);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(70,48,24,.4)';
+    ctx.fillRect(0, groundY, W, H - groundY);
+    const g2 = ctx.createLinearGradient(0, groundY, 0, H);
+    g2.addColorStop(0, 'rgba(70,48,24,0)');
+    g2.addColorStop(1, 'rgba(40,26,12,.7)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, groundY, W, H - groundY);
+
+    // pedrinhas e sulcos que passam
+    const err = Math.random() * 100000;
+    ctx.fillStyle = 'rgba(50,35,18,.55)';
+    const step = 46;
+    const off = cityX % step;
+    for (let x = -off; x < W + step; x += step) {
+        const yy = dirtTop + 18 + Math.sin(x * 0.23 + err) * 3;
+        ctx.fillRect(x, yy, 12, 2);
+        ctx.fillStyle = 'rgba(220,190,140,.4)';
+        ctx.fillRect(x + 16, yy - 1, 8, 2);
+        ctx.fillStyle = 'rgba(50,35,18,.55)';
     }
 
-    const g = ctx.createLinearGradient(0, groundY, 0, H);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,.55)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, groundY, W, H - groundY);
+    // barranco de terra na beirada
+    ctx.fillStyle = '#c1935c';
+    ctx.fillRect(0, groundY - 6, W, 6);
+    ctx.fillStyle = '#a87e4a';
+    ctx.fillRect(0, groundY - 6, W, 2);
 }
 
 function drawParticles() {
